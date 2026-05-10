@@ -931,6 +931,8 @@ function renderItemCard(item,isPast){
         <div style="font-family:'DM Serif Display',serif;font-size:17px;color:var(--navy)">${item.label||item.name||'—'}</div>
         ${item.date?`<div style="font-size:12px;color:var(--muted);margin-top:3px">${fd(item.date)}</div>`:''}
         ${summary?`<div style="font-size:12px;color:var(--muted);margin-top:2px;white-space:pre-wrap">${summary}</div>`:''}
+        ${(item.type==='stay'||item.type==='activity')&&item.addr?`<div style="margin-top:7px"><a class="map-btn" href="https://maps.google.com/maps?q=${encodeURIComponent(item.addr)}" target="_blank" onclick="event.stopPropagation()">📍 Directions</a></div>`:''}
+        ${item.type==='travel'&&item.to?`<div style="margin-top:7px"><a class="map-btn" href="https://maps.google.com/maps?q=${encodeURIComponent(item.to)}" target="_blank" onclick="event.stopPropagation()">📍 ${item.to}</a></div>`:''}
       </div>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:8px">
         <button class="btn-icon" onclick="event.stopPropagation();delItem('${item.id}')">🗑</button>
