@@ -1222,8 +1222,17 @@ async function ensureSheet(){
   sheetId=d.spreadsheetId; localStorage.setItem('hc7_sheet',sheetId);
 }
 async function syncUp(){
-  if(!gTok||!sheetId) return; setSyncSt('Syncing…',true);
+  if(!gTok||!sheetId){
+    console.log('syncUp bailed — gTok:',!!gTok,'sheetId:',sheetId);
+    if(!gTok){ setSyncSt('Not signed in',false); return; }
+    if(!sheetId){ 
+      setSyncSt('Creating sheet…',true);
+      try{ await ensureSheet(); }catch(e){ setSyncSt('Sheet creation failed: '+e.message,false); console.error('ensureSheet error:',e); return; }
+    }
+  }
+  setSyncSt('Syncing…',true);
   try{
+    console.log('Starting sync, sheetId:',sheetId);
     const hols=S.holidays.map(h=>[h.id,h.name||'',h.dest||'',h.depart||'',h.ret||'',(h.travellers||[]).join(',')]);
     const items=[],pays=[],travs=[],contacts=[];
     S.holidays.forEach(h=>{
@@ -1240,15 +1249,29 @@ async function syncUp(){
       {n:'Travellers',h:[['ID','Name','Passport','Expiry','Nationality']],r:travs},
       {n:'Contacts',h:[['ID','HolidayID','Type','Label','Phone','Notes','Scope']],r:contacts}
     ];
-    for(const s of sheets) await sheetsReq('PUT','/'+sheetId+'/values/'+encodeURIComponent(s.n+'!A1')+'?valueInputOption=RAW',{values:[...s.h,...s.r]});
+    for(const s of sheets){
+      console.log('Writing sheet:',s.n);
+      await sheetsReq('PUT','/'+sheetId+'/values/'+encodeURIComponent(s.n+'!A1')+'?valueInputOption=RAW',{values:[...s.h,...s.r]});
+    }
     const now=new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
     setSyncSt('Synced '+now,false);
     if(G('lastSyncEl')) G('lastSyncEl').textContent=now;
     localStorage.setItem('hc7_ls',now);
-  }catch(e){ setSyncSt('Failed: '+e.message,false); }
+    console.log('Sync complete');
+  }catch(e){ 
+    setSyncSt('Failed: '+e.message,false); 
+    console.error('Sync error:',e);
+  }
 }
 function setSyncSt(msg,spin){ const b=G('sbSyncBtn'); if(b){ b.textContent=spin?'↻ Syncing…':'↻ Sync now'; b.classList.toggle('spin',spin); } if(G('syncStatusEl')) G('syncStatusEl').textContent=msg; }
-async function manualSync(){ if(!gTok){ alert('Sign in with Google first (Settings).'); return; } await syncUp(); }
+async function manualSync(){ 
+  if(!gTok){ alert('Sign in with Google first (Settings).'); return; }
+  if(!sheetId){ 
+    setSyncSt('Creating spreadsheet…',true);
+    try{ await ensureSheet(); }catch(e){ setSyncSt('Failed to create sheet: '+e.message,false); console.error(e); return; }
+  }
+  await syncUp(); 
+}
 
 // ═══════════════════════════════════════
 // MODAL HELPERS
