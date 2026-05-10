@@ -1154,7 +1154,7 @@ function showProc(){ G('impStep1').style.display='none'; G('impProc').style.disp
 async function callClaude(key,text,content){
   const schema=`{"type":"travel|stay|activity|payment|multiple","confidence":"high|medium|low","notes":"caveats","travel":{"mode":"✈️ Flight|⛴️ Ferry|🚂 Train|🚌 Transfer|🚗 Car hire pickup","from":"","to":"","date":"YYYY-MM-DD","time":"HH:MM","arr":"HH:MM","num":"","ref":"","notes":""},"returnTravel":null,"stay":{"name":"","addr":"","date":"YYYY-MM-DD","time":"HH:MM","dateout":"YYYY-MM-DD","timeout":"HH:MM","ref":"","phone":"","notes":""},"activity":{"name":"","addr":"","date":"YYYY-MM-DD","time":"HH:MM","ref":"","notes":""},"payments":[{"desc":"","amount":0.00,"status":"paid|due|arrival","due":"YYYY-MM-DD","paid":"YYYY-MM-DD","notes":""}]}`;
   const sys=`You are a travel booking parser. Extract structured travel booking data and return ONLY valid JSON (no markdown) matching: ${schema}. Set returnTravel to null if no return. Empty string for missing fields.`;
-  const body={model:'claude-sonnet-4-20250514',max_tokens:1600,messages:[{role:'user',content:content||(sys+'\n\nBOOKING TEXT:\n'+text)}]};
+  const body={model:'claude-sonnet-4-5',max_tokens:1600,messages:[{role:'user',content:content||(sys+'\n\nBOOKING TEXT:\n'+text)}]};
   if(content) body.system=sys;
   const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify(body)});
   if(!res.ok){ const e=await res.json(); throw new Error(e.error?.message||'API error '+res.status); }
