@@ -411,7 +411,9 @@ textarea.fi{min-height:100px;resize:vertical;line-height:1.6}
               <div class="sync-row"><span style="color:var(--muted)">Last synced</span><span style="font-weight:500" id="lastSyncEl">Never</span></div>
               <div class="sync-row"><span style="color:var(--muted)">Status</span><span style="font-weight:500" id="syncStatusEl">—</span></div>
               <button class="btn btn-sky btn-sm" style="margin-top:16px;width:100%" onclick="manualSync()">↻ Sync now</button>
-              <button class="btn btn-danger btn-sm" style="margin-top:8px;width:100%" onclick="signOut()">Sign out</button>
+              <button class="btn btn-outline btn-sm" style="margin-top:8px;width:100%" onclick="forceLoadFromSheets()">⬇ Load from Sheets</button>
+              <p style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">Use "Load from Sheets" on a new device to pull all your data down. Use "Sync now" to push and merge changes.</p>
+              <button class="btn btn-danger btn-sm" style="margin-top:10px;width:100%" onclick="signOut()">Sign out</button>
             </div>
           </div>
 
@@ -1383,6 +1385,59 @@ async function manualSync(){
     try{ await ensureSheet(); }catch(e){ setSyncSt('Failed: '+e.message,false); return; }
   }
   await mergeSync();
+}
+
+async function forceLoadFromSheets(){
+  if(!gTok){ alert('Sign in with Google first.'); return; }
+  if(!sheetId){ alert('No spreadsheet found. Try Sync now first.'); return; }
+  if(!confirm('This will load all data from Google Sheets, merging with anything on this device. Continue?')) return;
+  setSyncSt('Loading from Sheets…',true);
+  try{
+    const ranges=['Holidays','Items','Payments','Travellers','Contacts'].map(n=>encodeURIComponent(n+'!A1:ZZ10000')).join('&ranges=');
+    const res=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values:batchGet?ranges=${ranges}`,{headers:{Authorization:'Bearer '+gTok}});
+    if(!res.ok){ const e=await res.json(); throw new Error(e.error?.message||'Read error'); }
+    const data=await res.json();
+    const vr=data.valueRanges||[];
+    const parse=arr=>{ if(!arr||!arr.values||arr.values.length<2) return []; const hdr=arr.values[0]; return arr.values.slice(1).map(row=>{ const obj={}; hdr.forEach((k,i)=>{ obj[k]=row[i]||''; }); return obj; }); };
+
+    const remHols=parse(vr[0]);
+    const remItems=parse(vr[1]);
+    const remPays=parse(vr[2]);
+    const remTravs=parse(vr[3]);
+    const remContacts=parse(vr[4]);
+
+    if(!remHols.length){ setSyncSt('Nothing in Sheets yet',false); return; }
+
+    // Rebuild travellers and global contacts from Sheets
+    S.travellers=remTravs.map(t=>({id:t.ID,name:t.Name,passport:t.Passport,expiry:t.Expiry,nat:t.Nationality,_updated:parseInt(t._updated||'0')||0}));
+    S.globalContacts=remContacts.filter(c=>c.Scope==='global').map(c=>({id:c.ID,type:c.Type,label:c.Label,phone:c.Phone,notes:c.Notes,scope:'global',_updated:parseInt(c._updated||'0')||0}));
+
+    // Rebuild holidays from Sheets, preserving local docs
+    const localDocMap={};
+    S.holidays.forEach(h=>{ localDocMap[h.id]=h.docs||[]; });
+
+    S.holidays=remHols.map(h=>({
+      id:h.ID, name:h.Name, dest:h.Destination, depart:h.Departure, ret:h.Return,
+      travellers:(h.TravellerIDs||'').split(',').filter(Boolean),
+      _updated:parseInt(h._updated||'0')||0,
+      items:remItems.filter(i=>i.HolidayID===h.ID).map(i=>{ try{ const p=JSON.parse(i.JSON||'{}'); p._updated=parseInt(i._updated||'0')||0; return p; }catch(e){ return {id:i.ID,type:i.Type,label:i.Label,date:i.Date,time:i.Time,_updated:0}; } }),
+      payments:remPays.filter(p=>p.HolidayID===h.ID).map(p=>({id:p.ID,desc:p.Description,amount:parseFloat(p.Amount)||0,status:p.Status,due:p.DueDate,paid:p.PaidDate,notes:p.Notes,_updated:parseInt(p._updated||'0')||0})),
+      contacts:remContacts.filter(c=>c.HolidayID===h.ID&&c.Scope!=='global').map(c=>({id:c.ID,type:c.Type,label:c.Label,phone:c.Phone,notes:c.Notes,scope:'trip',_updated:parseInt(c._updated||'0')||0})),
+      docs:localDocMap[h.ID]||[]
+    }));
+
+    if(!S.cur||!S.holidays.find(h=>h.id===S.cur)) S.cur=S.holidays[0]?.id||null;
+    save();
+    buildHSelect();
+    renderAll();
+    const now=new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    setSyncSt('Loaded at '+now,false);
+    if(G('lastSyncEl')) G('lastSyncEl').textContent=now;
+    localStorage.setItem('hc7_ls',now);
+  }catch(e){
+    setSyncSt('Load failed: '+e.message,false);
+    console.error('forceLoad error:',e);
+  }
 }
 
 // ═══════════════════════════════════════
