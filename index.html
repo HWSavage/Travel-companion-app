@@ -840,19 +840,59 @@ function renderTrip(){
   // Next up
   if(upcoming){
     const u=upcoming;
-    let sub='', refs='';
+    let sub='', refs='', mapBtn='', expandedRows='';
+
+    // Collapsed summary
     if(u.type==='travel'){ sub=u.time+(u.arr?' → '+u.arr:''); if(u.notes) sub+='<br>'+u.notes; }
     else if(u.type==='stay'){ sub=(u.time?'Check-in from '+u.time:'')+(u.addr?'<br>'+u.addr:''); }
     else if(u.type==='activity'){ sub=(u.time||'')+(u.addr?'<br>'+u.addr:''); }
     else if(u.type==='note'){ sub=u.notetext?(u.notetext.length>80?u.notetext.slice(0,80)+'…':u.notetext):''; }
     if(u.ref) refs+=`<span class="nc-ref">${u.ref}</span>`;
     if(u.num) refs+=`<span class="nc-ref">${u.num}</span>`;
-    html+=`<div class="next-card">
-      <div class="nc-lbl">Next up</div>
-      <div class="nc-title">${u.label||u.name||'—'}</div>
-      ${sub?`<div class="nc-sub">${sub}</div>`:''}
-      <div class="nc-date">📅 ${fd(u.date)}</div>
-      ${refs?`<div class="nc-refs">${refs}</div>`:''}
+
+    // Map button
+    if((u.type==='stay'||u.type==='activity')&&u.addr){
+      mapBtn=`<a class="map-btn" href="https://maps.google.com/maps?q=${encodeURIComponent(u.addr)}" target="_blank" style="margin-top:10px;display:inline-flex">📍 Directions</a>`;
+    } else if(u.type==='travel'&&u.to){
+      mapBtn=`<a class="map-btn" href="https://maps.google.com/maps?q=${encodeURIComponent(u.to)}" target="_blank" style="margin-top:10px;display:inline-flex">📍 ${u.to}</a>`;
+    }
+
+    // Expanded detail rows
+    if(u.type==='travel'){
+      if(u.time||u.arr) expandedRows+=fr2((u.time||'?')+(u.arr?' → '+u.arr:''));
+      if(u.num) expandedRows+=fr2(`Flight / Ref: <span style="font-family:monospace;background:rgba(255,255,255,.15);padding:1px 6px;border-radius:4px">${u.num}</span>`);
+      if(u.ref) expandedRows+=fr2(`Booking Ref: <span style="font-family:monospace;background:rgba(255,255,255,.15);padding:1px 6px;border-radius:4px">${u.ref}</span>`);
+      if(u.notes) expandedRows+=fr2(u.notes);
+    } else if(u.type==='stay'){
+      if(u.addr) expandedRows+=fr2(u.addr);
+      if(u.time) expandedRows+=fr2('Check-in: '+u.time+(u.dateout?' · Check-out: '+(u.timeout||'11:00')+' on '+fd(u.dateout):''));
+      if(u.ref) expandedRows+=fr2(`Ref: <span style="font-family:monospace;background:rgba(255,255,255,.15);padding:1px 6px;border-radius:4px">${u.ref}</span>`);
+      if(u.phone) expandedRows+=fr2(`<a href="tel:${u.phone}" style="color:var(--sky)">${u.phone}</a>`);
+      if(u.notes) expandedRows+=fr2(u.notes);
+    } else if(u.type==='activity'){
+      if(u.addr) expandedRows+=fr2(u.addr);
+      if(u.time) expandedRows+=fr2('Time: '+u.time);
+      if(u.ref) expandedRows+=fr2(`Ref: <span style="font-family:monospace;background:rgba(255,255,255,.15);padding:1px 6px;border-radius:4px">${u.ref}</span>`);
+      if(u.notes) expandedRows+=fr2(u.notes);
+    } else if(u.type==='note'){
+      if(u.notetext) expandedRows+=`<div style="font-size:14px;line-height:1.7;color:rgba(255,255,255,.85);margin-top:8px;white-space:pre-wrap">${u.notetext}</div>`;
+    }
+
+    html+=`<div class="next-card" onclick="toggleNextCard()" style="cursor:pointer">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div style="flex:1">
+          <div class="nc-lbl">Next up — tap to expand</div>
+          <div class="nc-title">${u.label||u.name||'—'}</div>
+          ${sub?`<div class="nc-sub">${sub}</div>`:''}
+          <div class="nc-date">📅 ${fd(u.date)}</div>
+          ${refs?`<div class="nc-refs">${refs}</div>`:''}
+          ${mapBtn?`<div>${mapBtn}</div>`:''}
+        </div>
+        <div id="ncChev" style="color:rgba(255,255,255,.5);font-size:16px;margin-left:12px;margin-top:4px;transition:transform .2s">▾</div>
+      </div>
+      <div id="ncBody" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.15)">
+        ${expandedRows}
+      </div>
     </div>`;
   } else if(!items.length){
     html+=`<div class="card" style="text-align:center;padding:32px 20px;border-style:dashed">
@@ -944,6 +984,8 @@ function renderItemCard(item,isPast){
 }
 
 function toggleCard(id){ const b=G('body_'+id),c=G('chev_'+id); if(!b) return; const o=!b.classList.contains('open'); b.classList.toggle('open',o); if(c) c.classList.toggle('open',o); }
+function toggleNextCard(){ const b=G('ncBody'),c=G('ncChev'); if(!b) return; const o=b.style.display==='none'; b.style.display=o?'block':'none'; if(c) c.style.transform=o?'rotate(180deg)':''; }
+function fr2(v){ return `<div style="font-size:13px;color:rgba(255,255,255,.8);padding:5px 0;border-bottom:1px solid rgba(255,255,255,.1);line-height:1.5">${v}</div>`; }
 function togglePast(){ const el=G('pastItems'),tog=G('pastToggle'); if(!el) return; const s=el.style.display==='none'; el.style.display=s?'block':'none'; if(tog) tog.textContent=s?'hide':'show'; }
 function fr(l,v){ return `<div class="fr"><div class="fl">${l}</div><div class="fv">${v}</div></div>`; }
 
