@@ -718,9 +718,9 @@ function toggleTvCheck(label){
 function saveHoliday(){
   const name=G('hN').value.trim(); if(!name){ alert('Please enter a name'); return; }
   const selectedTvs=Array.from(document.querySelectorAll('#hTvPicker input[type=checkbox]:checked')).map(cb=>cb.value);
-  const h={id:''+Date.now(),name,dest:G('hDst').value,depart:G('hDep').value,ret:G('hRet').value,travellers:selectedTvs,items:[],payments:[],docs:[]};
+  const h=stamp({id:''+Date.now(),name,dest:G('hDst').value,depart:G('hDep').value,ret:G('hRet').value,travellers:selectedTvs,items:[],payments:[],contacts:[],docs:[]});
   S.holidays.push(h); S.cur=h.id;
-  save(); if(gTok) syncUp(); closeModal('hModal'); buildHSelect(); renderAll();
+  save(); if(gTok) mergeSync(); closeModal('hModal'); buildHSelect(); renderAll();
 }
 
 // ═══════════════════════════════════════
@@ -728,15 +728,15 @@ function saveHoliday(){
 // ═══════════════════════════════════════
 function saveGlobalTraveller(){
   const name=G('tvName').value.trim(); if(!name){ alert('Please enter a name'); return; }
-  S.travellers.push({id:''+Date.now(),name,passport:G('tvPass').value.trim(),expiry:G('tvExp').value,nat:G('tvNat').value.trim()});
-  save(); if(gTok) syncUp(); closeModal('tvModal'); renderSettings();
+  S.travellers.push(stamp({id:''+Date.now(),name,passport:G('tvPass').value.trim(),expiry:G('tvExp').value,nat:G('tvNat').value.trim()}));
+  save(); if(gTok) mergeSync(); closeModal('tvModal'); renderSettings();
 }
 function delGlobalTraveller(id){
   if(!confirm('Remove this traveller?')) return;
   S.travellers=S.travellers.filter(t=>t.id!==id);
   // Also remove from all holidays
   S.holidays.forEach(h=>{ h.travellers=(h.travellers||[]).filter(tid=>tid!==id); });
-  save(); if(gTok) syncUp(); renderSettings();
+  save(); if(gTok) mergeSync(); renderSettings();
 }
 
 // ═══════════════════════════════════════
@@ -797,9 +797,9 @@ function saveItem(){
     item.label='📝 '+(item.name||'Note');
     item.sortKey=(item.date||'9999')+'T'+(item.time||'00:00');
   }
-  h.items.push(item); save(); if(gTok) syncUp(); closeModal('itemModal'); renderTrip();
+  h.items.push(stamp(item)); save(); if(gTok) mergeSync(); closeModal('itemModal'); renderTrip();
 }
-function delItem(id){ const h=H(); if(!h) return; h.items=h.items.filter(i=>i.id!==id); save(); if(gTok) syncUp(); renderTrip(); }
+function delItem(id){ const h=H(); if(!h) return; h.items=h.items.filter(i=>i.id!==id); save(); if(gTok) mergeSync(); renderTrip(); }
 
 // ═══════════════════════════════════════
 // RENDER TRIP
@@ -949,14 +949,14 @@ const EC_TYPES={
 
 function saveEC(){
   const scope=G('ecScope').value;
-  const contact={
+  const contact=stamp({
     id:''+Date.now(),
     type:G('ecType').value,
     label:gv('ecLabel'),
     phone:gv('ecPhone'),
     notes:gv('ecNotes'),
     scope
-  };
+  });
   if(!contact.label&&!contact.phone){ alert('Please enter at least a label or phone number'); return; }
   if(scope==='global'){
     if(!S.globalContacts) S.globalContacts=[];
@@ -966,7 +966,7 @@ function saveEC(){
     if(!h.contacts) h.contacts=[];
     h.contacts.push(contact);
   }
-  save(); if(gTok) syncUp(); closeModal('ecModal'); renderEmergency();
+  save(); if(gTok) mergeSync(); closeModal('ecModal'); renderEmergency();
 }
 
 function delEC(id, scope){
@@ -976,7 +976,7 @@ function delEC(id, scope){
     const h=H(); if(!h) return;
     h.contacts=(h.contacts||[]).filter(c=>c.id!==id);
   }
-  save(); if(gTok) syncUp(); renderEmergency();
+  save(); if(gTok) mergeSync(); renderEmergency();
 }
 
 function renderEmergency(){
@@ -1035,8 +1035,8 @@ function ecCard(c, scope){
 // ═══════════════════════════════════════
 // MONEY
 // ═══════════════════════════════════════
-function savePayment(){ const h=H(); if(!h){ alert('Select a holiday first'); return; } h.payments.push({id:''+Date.now(),desc:gv('pDesc'),amount:parseFloat(G('pAmt').value)||0,status:G('pStat').value,due:gv('pDue'),paid:gv('pPaid'),notes:gv('pNotes')}); save(); if(gTok) syncUp(); closeModal('payModal'); renderMoney(); }
-function delPayment(id){ const h=H(); if(!h) return; h.payments=h.payments.filter(p=>p.id!==id); save(); if(gTok) syncUp(); renderMoney(); }
+function savePayment(){ const h=H(); if(!h){ alert('Select a holiday first'); return; } h.payments.push(stamp({id:''+Date.now(),desc:gv('pDesc'),amount:parseFloat(G('pAmt').value)||0,status:G('pStat').value,due:gv('pDue'),paid:gv('pPaid'),notes:gv('pNotes')})); save(); if(gTok) mergeSync(); closeModal('payModal'); renderMoney(); }
+function delPayment(id){ const h=H(); if(!h) return; h.payments=h.payments.filter(p=>p.id!==id); save(); if(gTok) mergeSync(); renderMoney(); }
 function renderMoney(){
   const h=H(); const el=G('moneyContent');
   if(!h){ el.innerHTML=''; return; }
@@ -1191,22 +1191,39 @@ function confirmImport(){
   if(d.stay&&(ri('s0_name')||ri('s0_date'))){ h.items.push({id:''+(now+2),type:'stay',name:ri('s0_name'),addr:ri('s0_addr'),date:ri('s0_date'),time:ri('s0_time'),dateout:ri('s0_dout'),timeout:ri('s0_tout'),ref:ri('s0_ref'),phone:ri('s0_phone'),notes:ri('s0_notes'),label:'🏨 '+ri('s0_name'),sortKey:(ri('s0_date')||'9999')+'T'+(ri('s0_time')||'14:00'),sourceDocId:src}); }
   if(d.activity&&(ri('a0_name')||ri('a0_date'))){ h.items.push({id:''+(now+3),type:'activity',name:ri('a0_name'),addr:ri('a0_addr'),date:ri('a0_date'),time:ri('a0_time'),ref:ri('a0_ref'),notes:ri('a0_notes'),label:'🎯 '+ri('a0_name'),sortKey:(ri('a0_date')||'9999')+'T'+(ri('a0_time')||'00:00'),sourceDocId:src}); }
   if(d.payments) d.payments.forEach((p,i)=>{ const desc=ri('p'+i+'_desc'); if(desc) h.payments.push({id:''+(now+10+i),desc,amount:parseFloat(ri('p'+i+'_amt'))||0,status:ri('p'+i+'_stat'),due:ri('p'+i+'_due'),paid:ri('p'+i+'_paid'),notes:ri('p'+i+'_notes')}); });
-  save(); if(gTok) syncUp(); closeModal('impModal'); G('impText').value=''; renderAll();
+  save(); if(gTok) mergeSync(); closeModal('impModal'); G('impText').value=''; renderAll();
   setTimeout(()=>alert('✓ Booking imported!'),150);
 }
 
 // ═══════════════════════════════════════
-// GOOGLE SYNC
+// GOOGLE SYNC — two-way merge
+// Every record has an _updated timestamp.
+// On sync: read Sheets, merge with local,
+// newest timestamp wins, write merged back.
 // ═══════════════════════════════════════
 let tokClient=null;
+
 function startGoogleSignIn(){
   const cid=getCid(); if(!cid){ alert('Paste your Google OAuth Client ID and save first.'); return; }
   if(typeof google==='undefined'){ alert('Google sign-in not loaded. Check internet connection.'); return; }
-  tokClient=google.accounts.oauth2.initTokenClient({client_id:cid,scope:'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file',callback:async r=>{ if(r.error){ alert('Sign-in failed: '+r.error); return; } gTok=r.access_token; await fetchProfile(); renderGSignedIn(); await ensureSheet(); syncUp(); }});
+  tokClient=google.accounts.oauth2.initTokenClient({
+    client_id:cid,
+    scope:'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file',
+    callback:async r=>{
+      if(r.error){ alert('Sign-in failed: '+r.error); return; }
+      gTok=r.access_token;
+      await fetchProfile();
+      renderGSignedIn();
+      await ensureSheet();
+      await mergeSync();
+    }
+  });
   tokClient.requestAccessToken();
 }
+
 async function fetchProfile(){ const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+gTok}}); gUser=await r.json(); localStorage.setItem('hc7_user',JSON.stringify(gUser)); }
 function signOut(){ if(gTok&&typeof google!=='undefined') google.accounts.oauth2.revoke(gTok); gTok=null; gUser=null; localStorage.removeItem('hc7_user'); if(G('gSignedOut')) G('gSignedOut').style.display='block'; if(G('gSignedIn')) G('gSignedIn').style.display='none'; updateSyncInfo('Not connected to Google'); }
+
 function renderGSignedIn(){
   if(G('gSignedOut')) G('gSignedOut').style.display='none'; if(G('gSignedIn')) G('gSignedIn').style.display='block';
   const ini=(gUser.name||'?').split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2);
@@ -1216,61 +1233,156 @@ function renderGSignedIn(){
 }
 function updateSyncInfo(msg){ ['sbSyncInfo','drawerSyncInfo'].forEach(id=>{ const e=G(id); if(e) e.textContent=msg; }); }
 async function sheetsReq(method,path,body){ const r=await fetch('https://sheets.googleapis.com/v4/spreadsheets'+path,{method,headers:{Authorization:'Bearer '+gTok,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined}); if(!r.ok){ const e=await r.json(); throw new Error(e.error?.message||'Sheets error'); } return r.json(); }
+
 async function ensureSheet(){
   if(sheetId){ try{ await sheetsReq('GET','/'+sheetId+'?fields=spreadsheetId'); return; }catch(e){ sheetId=null; } }
-  const d=await sheetsReq('POST','',{properties:{title:'Holiday Companion'},sheets:[{properties:{title:'Holidays'}},{properties:{title:'Items'}},{properties:{title:'Payments'}},{properties:{title:'Travellers'}},{properties:{title:'Contacts'}}]});
+  const d=await sheetsReq('POST','',{properties:{title:'Holiday Companion'},sheets:[
+    {properties:{title:'Holidays'}},{properties:{title:'Items'}},{properties:{title:'Payments'}},
+    {properties:{title:'Travellers'}},{properties:{title:'Contacts'}}
+  ]});
   sheetId=d.spreadsheetId; localStorage.setItem('hc7_sheet',sheetId);
+  if(G('sheetLinkEl')) G('sheetLinkEl').innerHTML=`<a class="sheet-link" href="https://docs.google.com/spreadsheets/d/${sheetId}" target="_blank">Open ↗</a>`;
 }
-async function syncUp(){
-  if(!gTok||!sheetId){
-    console.log('syncUp bailed — gTok:',!!gTok,'sheetId:',sheetId);
-    if(!gTok){ setSyncSt('Not signed in',false); return; }
-    if(!sheetId){ 
-      setSyncSt('Creating sheet…',true);
-      try{ await ensureSheet(); }catch(e){ setSyncSt('Sheet creation failed: '+e.message,false); console.error('ensureSheet error:',e); return; }
-    }
-  }
+
+// Stamp every new/modified record with current timestamp
+function stamp(obj){ obj._updated=Date.now(); return obj; }
+
+// Merge two arrays by ID — newest _updated wins
+function mergeById(local, remote){
+  const map={};
+  // Start with remote
+  remote.forEach(r=>{ map[r.id]=r; });
+  // Local wins if newer or same age
+  local.forEach(l=>{ if(!map[l.id]||(l._updated||0)>=(map[l.id]._updated||0)) map[l.id]=l; });
+  return Object.values(map);
+}
+
+async function mergeSync(){
+  if(!gTok||!sheetId) return;
   setSyncSt('Syncing…',true);
   try{
-    console.log('Starting sync, sheetId:',sheetId);
-    const hols=S.holidays.map(h=>[h.id,h.name||'',h.dest||'',h.depart||'',h.ret||'',(h.travellers||[]).join(',')]);
-    const items=[],pays=[],travs=[],contacts=[];
-    S.holidays.forEach(h=>{
-      (h.items||[]).forEach(i=>items.push([i.id,h.id,i.type||'',i.label||'',i.date||'',i.time||'',JSON.stringify(i)]));
-      (h.payments||[]).forEach(p=>pays.push([p.id,h.id,p.desc||'',p.amount||0,p.status||'',p.due||'',p.paid||'',p.notes||'']));
-      (h.contacts||[]).forEach(c=>contacts.push([c.id,h.id,c.type||'',c.label||'',c.phone||'',c.notes||'','trip']));
+    // ── 1. READ from Sheets ──
+    const ranges=['Holidays','Items','Payments','Travellers','Contacts'].map(n=>encodeURIComponent(n+'!A1:ZZ10000')).join('&ranges=');
+    const res=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values:batchGet?ranges=${ranges}`,{headers:{Authorization:'Bearer '+gTok}});
+    if(!res.ok){ const e=await res.json(); throw new Error(e.error?.message||'Read error'); }
+    const data=await res.json();
+    const vr=data.valueRanges||[];
+    const parse=arr=>{ if(!arr||!arr.values||arr.values.length<2) return []; const hdr=arr.values[0]; return arr.values.slice(1).map(row=>{ const obj={}; hdr.forEach((k,i)=>{ obj[k]=row[i]||''; }); return obj; }); };
+
+    const remoteHols=parse(vr[0]);
+    const remoteItems=parse(vr[1]);
+    const remotePays=parse(vr[2]);
+    const remoteTravs=parse(vr[3]);
+    const remoteContacts=parse(vr[4]);
+
+    // Parse remote items from JSON column
+    const parsedRemoteItems=remoteItems.map(i=>{ try{ const p=JSON.parse(i.JSON||'{}'); p._updated=parseInt(i._updated||'0')||0; return p; }catch(e){ return {id:i.ID,type:i.Type,label:i.Label,date:i.Date,time:i.Time,_updated:0}; } });
+
+    // Parse remote holidays
+    const parsedRemoteHols=remoteHols.map(h=>({
+      id:h.ID, name:h.Name, dest:h.Destination, depart:h.Departure, ret:h.Return,
+      travellers:(h.TravellerIDs||'').split(',').filter(Boolean),
+      _updated:parseInt(h._updated||'0')||0,
+      items:[], payments:[], contacts:[], docs:[]
+    }));
+
+    // Parse remote payments
+    const parsedRemotePays=remotePays.map(p=>({
+      id:p.ID, holidayId:p.HolidayID, desc:p.Description, amount:parseFloat(p.Amount)||0,
+      status:p.Status, due:p.DueDate, paid:p.PaidDate, notes:p.Notes,
+      _updated:parseInt(p._updated||'0')||0
+    }));
+
+    // Parse remote travellers
+    const parsedRemoteTravs=remoteTravs.map(t=>({
+      id:t.ID, name:t.Name, passport:t.Passport, expiry:t.Expiry, nat:t.Nationality,
+      _updated:parseInt(t._updated||'0')||0
+    }));
+
+    // Parse remote contacts
+    const parsedRemoteContacts=remoteContacts.map(c=>({
+      id:c.ID, holidayId:c.HolidayID, type:c.Type, label:c.Label, phone:c.Phone,
+      notes:c.Notes, scope:c.Scope, _updated:parseInt(c._updated||'0')||0
+    }));
+
+    // ── 2. MERGE ──
+    // Merge travellers
+    const localTravs=S.travellers.map(t=>({...t, holidayId:undefined}));
+    S.travellers=mergeById(localTravs, parsedRemoteTravs);
+
+    // Merge global contacts
+    const localGlobal=(S.globalContacts||[]);
+    const remoteGlobal=parsedRemoteContacts.filter(c=>c.scope==='global');
+    S.globalContacts=mergeById(localGlobal, remoteGlobal);
+
+    // Merge holidays
+    const mergedHols=mergeById(S.holidays, parsedRemoteHols);
+
+    // For each merged holiday, merge its items, payments, contacts
+    S.holidays=mergedHols.map(h=>{
+      const remItems=parsedRemoteItems.filter(i=>i.holidayId===h.id||i.sortKey); // items store holidayId in JSON
+      const remItemsForH=parsedRemoteItems.filter(i=>{ try{ const p=JSON.parse(remoteItems.find(r=>r.ID===i.id)?.JSON||'{}'); return p.holidayId===h.id; }catch(e){ return false; } });
+      // Simpler: just match by what's in remoteItems HolidayID column
+      const remItemsH=remoteItems.filter(r=>r.HolidayID===h.id).map(i=>{ try{ const p=JSON.parse(i.JSON||'{}'); p._updated=parseInt(i._updated||'0')||0; return p; }catch(e){ return {id:i.ID,type:i.Type,label:i.Label,date:i.Date,time:i.Time,_updated:0}; } });
+      const mergedItems=mergeById(h.items||[], remItemsH);
+
+      const remPaysH=parsedRemotePays.filter(p=>p.holidayId===h.id);
+      const mergedPays=mergeById(h.payments||[], remPaysH);
+
+      const remContactsH=parsedRemoteContacts.filter(c=>c.holidayId===h.id&&c.scope!=='global');
+      const mergedContacts=mergeById(h.contacts||[], remContactsH);
+
+      return {...h, items:mergedItems, payments:mergedPays, contacts:mergedContacts, docs:h.docs||[]};
     });
-    S.travellers.forEach(t=>travs.push([t.id,t.name||'',t.passport||'',t.expiry||'',t.nat||'']));
-    (S.globalContacts||[]).forEach(c=>contacts.push([c.id,'global',c.type||'',c.label||'',c.phone||'',c.notes||'','global']));
+
+    // ── 3. WRITE merged data back to Sheets ──
+    const holRows=S.holidays.map(h=>[h.id,h.name||'',h.dest||'',h.depart||'',h.ret||'',(h.travellers||[]).join(','),h._updated||0]);
+    const itemRows=[],payRows=[],travRows=[],contactRows=[];
+    S.holidays.forEach(h=>{
+      (h.items||[]).forEach(i=>itemRows.push([i.id,h.id,i.type||'',i.label||'',i.date||'',i.time||'',JSON.stringify(i),i._updated||0]));
+      (h.payments||[]).forEach(p=>payRows.push([p.id,h.id,p.desc||'',p.amount||0,p.status||'',p.due||'',p.paid||'',p.notes||'',p._updated||0]));
+      (h.contacts||[]).forEach(c=>contactRows.push([c.id,h.id,c.type||'',c.label||'',c.phone||'',c.notes||'','trip',c._updated||0]));
+    });
+    S.travellers.forEach(t=>travRows.push([t.id,t.name||'',t.passport||'',t.expiry||'',t.nat||'',t._updated||0]));
+    (S.globalContacts||[]).forEach(c=>contactRows.push([c.id,'global',c.type||'',c.label||'',c.phone||'',c.notes||'','global',c._updated||0]));
+
     const sheets=[
-      {n:'Holidays',h:[['ID','Name','Destination','Departure','Return','TravellerIDs']],r:hols},
-      {n:'Items',h:[['ID','HolidayID','Type','Label','Date','Time','JSON']],r:items},
-      {n:'Payments',h:[['ID','HolidayID','Description','Amount','Status','DueDate','PaidDate','Notes']],r:pays},
-      {n:'Travellers',h:[['ID','Name','Passport','Expiry','Nationality']],r:travs},
-      {n:'Contacts',h:[['ID','HolidayID','Type','Label','Phone','Notes','Scope']],r:contacts}
+      {n:'Holidays',h:[['ID','Name','Destination','Departure','Return','TravellerIDs','_updated']],r:holRows},
+      {n:'Items',h:[['ID','HolidayID','Type','Label','Date','Time','JSON','_updated']],r:itemRows},
+      {n:'Payments',h:[['ID','HolidayID','Description','Amount','Status','DueDate','PaidDate','Notes','_updated']],r:payRows},
+      {n:'Travellers',h:[['ID','Name','Passport','Expiry','Nationality','_updated']],r:travRows},
+      {n:'Contacts',h:[['ID','HolidayID','Type','Label','Phone','Notes','Scope','_updated']],r:contactRows}
     ];
     for(const s of sheets){
-      console.log('Writing sheet:',s.n);
       await sheetsReq('PUT','/'+sheetId+'/values/'+encodeURIComponent(s.n+'!A1')+'?valueInputOption=RAW',{values:[...s.h,...s.r]});
     }
+
+    // ── 4. SAVE merged state locally ──
+    save();
+    if(!S.cur||!S.holidays.find(h=>h.id===S.cur)) S.cur=S.holidays[0]?.id||null;
+    buildHSelect();
+    renderAll();
+
     const now=new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
     setSyncSt('Synced '+now,false);
     if(G('lastSyncEl')) G('lastSyncEl').textContent=now;
     localStorage.setItem('hc7_ls',now);
-    console.log('Sync complete');
-  }catch(e){ 
-    setSyncSt('Failed: '+e.message,false); 
-    console.error('Sync error:',e);
+    console.log('Two-way sync complete');
+  }catch(e){
+    setSyncSt('Sync failed: '+e.message,false);
+    console.error('mergeSync error:',e);
   }
 }
+
 function setSyncSt(msg,spin){ const b=G('sbSyncBtn'); if(b){ b.textContent=spin?'↻ Syncing…':'↻ Sync now'; b.classList.toggle('spin',spin); } if(G('syncStatusEl')) G('syncStatusEl').textContent=msg; }
-async function manualSync(){ 
+
+async function manualSync(){
   if(!gTok){ alert('Sign in with Google first (Settings).'); return; }
-  if(!sheetId){ 
+  if(!sheetId){
     setSyncSt('Creating spreadsheet…',true);
-    try{ await ensureSheet(); }catch(e){ setSyncSt('Failed to create sheet: '+e.message,false); console.error(e); return; }
+    try{ await ensureSheet(); }catch(e){ setSyncSt('Failed: '+e.message,false); return; }
   }
-  await syncUp(); 
+  await mergeSync();
 }
 
 // ═══════════════════════════════════════
