@@ -410,7 +410,15 @@ textarea.fi{min-height:100px;resize:vertical;line-height:1.6}
               <div class="sync-row"><span style="color:var(--muted)">Spreadsheet</span><span id="sheetLinkEl"></span></div>
               <div class="sync-row"><span style="color:var(--muted)">Last synced</span><span style="font-weight:500" id="lastSyncEl">Never</span></div>
               <div class="sync-row"><span style="color:var(--muted)">Status</span><span style="font-weight:500" id="syncStatusEl">—</span></div>
-              <button class="btn btn-sky btn-sm" style="margin-top:16px;width:100%" onclick="manualSync()">↻ Sync now</button>
+              <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+                <label class="fl2">Sheet ID (if not auto-detected)</label>
+                <div style="display:flex;gap:8px;margin-top:4px">
+                  <input class="fi" id="manualSheetId" placeholder="Paste sheet ID from URL…" style="flex:1;margin-bottom:0">
+                  <button class="btn btn-sm" style="margin-top:0;flex-shrink:0" onclick="saveManualSheetId()">Save</button>
+                </div>
+                <p style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">Find the ID in your spreadsheet URL: docs.google.com/spreadsheets/d/<strong>THIS-PART</strong>/edit</p>
+              </div>
+              <button class="btn btn-sky btn-sm" style="margin-top:14px;width:100%" onclick="manualSync()">↻ Sync now</button>
               <button class="btn btn-outline btn-sm" style="margin-top:8px;width:100%" onclick="forceLoadFromSheets()">⬇ Load from Sheets</button>
               <p style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">Use "Load from Sheets" on a new device to pull all your data down. Use "Sync now" to push and merge changes.</p>
               <button class="btn btn-danger btn-sm" style="margin-top:10px;width:100%" onclick="signOut()">Sign out</button>
@@ -1377,6 +1385,17 @@ async function mergeSync(){
 }
 
 function setSyncSt(msg,spin){ const b=G('sbSyncBtn'); if(b){ b.textContent=spin?'↻ Syncing…':'↻ Sync now'; b.classList.toggle('spin',spin); } if(G('syncStatusEl')) G('syncStatusEl').textContent=msg; }
+
+function saveManualSheetId(){
+  const val=G('manualSheetId').value.trim();
+  if(!val){ alert('Please paste a Sheet ID first'); return; }
+  const match=val.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  sheetId=match?match[1]:val;
+  localStorage.setItem('hc7_sheet',sheetId);
+  if(G('sheetLinkEl')) G('sheetLinkEl').innerHTML=`<a class="sheet-link" href="https://docs.google.com/spreadsheets/d/${sheetId}" target="_blank">Open ↗</a>`;
+  G('manualSheetId').value='';
+  setSyncSt('Sheet ID saved — tap Load from Sheets',false);
+}
 
 async function manualSync(){
   if(!gTok){ alert('Sign in with Google first (Settings).'); return; }
